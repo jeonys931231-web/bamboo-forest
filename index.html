@@ -163,9 +163,13 @@ button,input{font:inherit;color:inherit}
 .panel{background:var(--panel);border:1px solid var(--panel-line);box-shadow:var(--shade);-webkit-backdrop-filter:blur(14px) saturate(1.15);backdrop-filter:blur(14px) saturate(1.15)}
 
 .topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap}
-.plaque{display:flex;align-items:center;gap:10px;padding:6px 8px 6px 12px;border-radius:12px;min-width:0}
+.plaque{position:relative;z-index:4;display:flex;align-items:center;gap:10px;padding:6px 8px 6px 12px;border-radius:12px;min-width:0}
 .plaque-name{font-family:var(--font-display);font-size:17px;letter-spacing:.03em;white-space:nowrap}
-.count{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);background:var(--chip);border-radius:999px;padding:3px 10px 3px 8px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.count{display:inline-flex;align-items:center;gap:6px;border:0;font:inherit;font-size:12.5px;line-height:1.45;color:var(--muted);background:var(--chip);border-radius:999px;padding:3px 10px 3px 8px;white-space:nowrap;font-variant-numeric:tabular-nums;cursor:default}
+.count svg{display:none;width:12px;height:12px;margin-left:-2px}
+.count.can{cursor:pointer}
+.count.can svg{display:block}
+.count.can:hover{box-shadow:inset 0 0 0 1px var(--bamboo)}
 .count i{width:7px;height:7px;border-radius:50%;background:var(--muted)}
 .count.live{color:var(--ink)}
 .count.live i{background:var(--bamboo);box-shadow:0 0 0 3px var(--chip)}
@@ -188,6 +192,16 @@ button,input{font:inherit;color:inherit}
 .pop label input{grid-column:1/3}
 .pop .val{color:var(--ink);font-variant-numeric:tabular-nums}
 .pop p{margin:0;font-size:11.5px;color:var(--muted);line-height:1.5}
+.pop.from-left{left:0;right:auto;width:min(250px,calc(100vw - 32px));background:var(--panel-solid)}  /* inside the plaque's blur, so its own blur can't reach the buttons behind */
+.pop .pop-title{font-size:13px;color:var(--ink)}
+.ch-list{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.ch-list .log-sys{padding:6px 0}
+.ch-item{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:36px;padding:6px 10px;border-radius:10px;border:1px solid var(--panel-line);background:transparent;color:var(--ink);font-size:13.5px;cursor:pointer;text-align:left}
+.ch-item:hover:not(:disabled){border-color:var(--bamboo)}
+.ch-item[aria-current="true"]{background:var(--chip);border-color:transparent}
+.ch-item:disabled{cursor:default}
+.ch-item:disabled:not([aria-current="true"]){opacity:.5}
+.ch-item small{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 input[type=range]{width:100%;margin:0;accent-color:var(--bamboo)}
 
 .middle{position:relative;flex:1;min-height:0;display:flex;align-items:flex-end;justify-content:flex-end}
@@ -311,7 +325,12 @@ input[type=range]{width:100%;margin:0;accent-color:var(--bamboo)}
   <header class="topbar">
     <div class="plaque panel">
       <span class="plaque-name">피부관리사 대나무숲</span>
-      <span class="count" id="count"><i></i><span id="countText">연결 중…</span></span>
+      <button class="count" id="count" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="chPop"><i></i><span id="countText">연결 중…</span><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="pop panel from-left" id="chPop" hidden>
+        <p class="pop-title">어느 숲으로 갈까요?</p>
+        <ul class="ch-list" id="chList"></ul>
+        <p>한 숲에 <span id="chCap">25</span>명까지 들어가요. 친구와 같은 번호를 고르면 같은 숲에서 만나요.</p>
+      </div>
     </div>
     <div class="tools">
       <span class="timer panel" id="timer">팩 붙인 지 0분</span>
@@ -1105,7 +1124,7 @@ const P = []; const RIPPLES = []; const visStalks = [];
 let entered = false, nameEdited = false, draft = { m: 0, b: 0, o: 0, u: 0, hr: 0 }, previewT0 = 0;
 let lastActive = performance.now(), marker = null, kicking = false, leafAcc = 0, rippleAt = 0;
 let room = null, roomState = 'pending', connected = false, discSince = 0, settled = false, settleTimer = null;
-let roomKind = 'none', connWarned = false, pendingWarn = null, menuPeer = null;
+let roomKind = 'none', connWarned = false, roomFailed = false, pendingWarn = null, menuPeer = null;
 const hushed = new Set();
 const CHAT_TTL = 10000;   // what I say leaves the server this long after I say it
 const liveMsgs = () => me.chat.map((x) => (x.s ? { id: x.id, t: x.t, s: 1 } : { id: x.id, t: x.t }));
@@ -1314,7 +1333,7 @@ function upsertPeer(p) {
   const msgs = readMsgs(pr), dn = pr.dn === 1;
   let s = peers.get(p.peer); const isNew = !s;
   if (!s) {
-    s = { peer: p.peer, x, y, tx: x, ty: y, phase: 0, moving: false, lastId: 0, eId: null, bubble: null, talkUntil: 0, emote: null, dn: false, key: p.by || p.peer, lastAct: Date.now(), seed: (hashStr(p.peer) % 100) / 10 };
+    s = { peer: p.peer, x, y, sx: x, sy: y, px: NaN, py: NaN, gx: null, gy: null, kx: 0, ky: 0, stuck: 0, phase: 0, moving: false, lastId: 0, eId: null, bubble: null, talkUntil: 0, emote: null, dn: false, key: p.by || p.peer, lastAct: Date.now(), seed: (hashStr(p.peer) % 100) / 10 };
     for (const m of msgs) s.lastId = Math.max(s.lastId, m.id);
     if (pr.e && Number.isInteger(pr.e.id)) s.eId = pr.e.id;
     peers.set(p.peer, s);
@@ -1322,12 +1341,31 @@ function upsertPeer(p) {
     const maskCh = s.m !== look.m, lookCh = s.o !== look.o || s.u !== look.u || s.hr !== look.hr || s.b !== look.b;
     if (maskCh || lookCh) { puffAt(s.x, s.y); Sound.play(maskCh ? 'peel' : 'change', spatial(s)); }
     if (dn && !s.dn) Sound.play('dance', spatial(s));
-    if (Math.abs(s.tx - x) > 0.5 || Math.abs(s.ty - y) > 0.5 || dn !== s.dn) s.lastAct = Date.now();
+    if (x !== s.px || y !== s.py || dn !== s.dn || pr.w === 1) s.lastAct = Date.now();
   }
   Object.assign(s, look);
   s.n = n; s.dn = dn;
   s.d = pr.d === 'l' || pr.d === 'r' || pr.d === 'u' ? pr.d : 'f'; s.w = pr.w === 1; s.dt = fin(pr.dt) ? clamp(pr.dt, 0, 600) : 0;
-  s.tx = x; s.ty = y; s.updatedAt = p.updatedAt; s.other = !!p.isMe; s.ts = fin(pr.ts) ? pr.ts : 0;
+  const walking = pr.w === 1;
+  const gx = walking && fin(pr.tx) ? clamp(pr.tx, 0, W) : null, gy = gx == null ? null : clamp(fin(pr.ty) ? pr.ty : y, 0, H);
+  const kx = walking && fin(pr.kx) ? clamp(Math.round(pr.kx), -1, 1) : 0, ky = walking && fin(pr.ky) ? clamp(Math.round(pr.ky), -1, 1) : 0;
+  const it = kx || ky ? 'k' + kx + ',' + ky : gx != null ? 't' + gx + ',' + gy : 'i';
+  // a new reported spot or a new walk (a stop included) restarts the replay from where they really are. On the same walk,
+  // the replay runs a little ahead of a report (the report is a trip old by the time it lands), so keep it then instead of pulling the walker back.
+  if (x !== s.px || y !== s.py || it !== s.it) {
+    let keep = false;
+    if (!isNew && it !== 'i' && it === s.it) {
+      let ux = kx, uy = ky; if (!(kx || ky)) { ux = gx - x; uy = gy - y; }
+      const l = Math.hypot(ux, uy) || 1; ux /= l; uy /= l;
+      const ex = s.sx - x, ey = s.sy - y, along = ex * ux + ey * uy, side = Math.abs(ex * uy - ey * ux);
+      keep = along >= -6 && along <= SPEED * 0.7 && side <= 24;
+    }
+    if (!keep) { s.sx = x; s.sy = y; s.stuck = 0; }
+  }
+  if (it !== s.it || x !== s.px || y !== s.py) s.rt = performance.now();
+  s.px = x; s.py = y; s.it = it;
+  s.gx = gx; s.gy = gy; s.kx = kx; s.ky = ky;
+  s.updatedAt = p.updatedAt; s.other = !!p.isMe; s.ts = fin(pr.ts) ? pr.ts : 0;
   if (!isNew) {
     for (const m of msgs) if (m.id > s.lastId) { s.lastId = m.id; s.lastAct = Date.now(); peerSaid(s, m); }
     if (pr.e && Number.isInteger(pr.e.id) && pr.e.id !== s.eId) { s.eId = pr.e.id; s.lastAct = Date.now(); if (EMOTES[pr.e.k]) startEmote(s, pr.e.k, false); }
@@ -1346,6 +1384,7 @@ function roomDead() { roomState = 'alone'; room = null; peers.clear(); updateCou
    Same three calls the page uses on claude.ai (onConnection, onPeers, presence), so the rest of the page doesn't care
    which one it talks to. Each open tab owns one node: rooms/<room>/players/<uid>-<tab>, removed when the tab disconnects. */
 const FB_VER = '12.19.0';
+const NEW_FIELDS = ['tx', 'ty', 'kx', 'ky'];   // walk-replay fields: where a tap is heading, which keys are held
 function withTimeout(p, ms) { return new Promise((res, rej) => { const t = setTimeout(() => rej(new Error('timeout')), ms); p.then((v) => { clearTimeout(t); res(v); }, (e) => { clearTimeout(t); rej(e); }); }); }
 async function firebaseRoom(cfg) {
   const base = 'https://www.gstatic.com/firebasejs/' + FB_VER + '/';
@@ -1355,24 +1394,36 @@ async function firebaseRoom(cfg) {
   if (cfg.emulator) { U.connectAuthEmulator(auth, 'http://' + cfg.emulator.host + ':' + cfg.emulator.authPort, { disableWarnings: true }); D.connectDatabaseEmulator(db, cfg.emulator.host, cfg.emulator.dbPort); }
   const uid = (await U.signInAnonymously(auth)).user.uid;
   const pid = uid + '-' + (Math.random().toString(36).slice(2, 8) || 'tab');
-  const roomName = /^[a-z0-9-]{1,24}$/.test(String(cfg.room || '')) ? cfg.room : 'main';
-  const listRef = D.ref(db, 'rooms/' + roomName + '/players'), meRef = D.child(listRef, pid);
+  // forests: "main" holds CAP people, then "main-2", "main-3"… newcomers take the first one with room
+  const baseRoom = /^[a-z0-9-]{1,20}$/.test(String(cfg.room || '')) ? cfg.room : 'main';
+  const CAP = isInt(cfg.cap, 1, 200) ? cfg.cap : 25, MAXCH = 8;
+  const chRef = (n) => D.ref(db, 'rooms/' + (n === 1 ? baseRoom : baseRoom + '-' + n) + '/players');
   const GAP = 150, MSG_GAP = 1100;   // the database rules refuse faster writes than this, so batch patches here
-  let mine = {}, pending = {}, conn = false, ready = false, writing = false, lastWrite = 0, lastMsgs = 0, timer = 0, offset = 0;
-  const connCbs = [], peerCbs = [];
+  let ch = 0, listRef = null, meRef = null, offs = [];
+  let mine = {}, pending = {}, conn = false, ready = false, writing = false, lastWrite = 0, lastMsgs = 0, timer = 0, offset = 0, legacy = false, writes = 0;
+  let entryPicked = false, picking = false;
+  const known = new Set(), connCbs = [], peerCbs = [], chCbs = [];
+  const fireCh = (n, auto, switching) => { for (const cb of chCbs) { try { cb(n, auto, switching); } catch (e) { console.error(e); } } };
   const toPeer = (s) => { const k = s.key, owner = k.slice(0, k.lastIndexOf('-')); return { peer: k, by: owner, isMe: owner === uid, sameTab: k === pid, kind: 'viewer', guest: false, presence: s.val() || {}, updatedAt: Date.now() }; };
-  const fire = (ch) => { for (const cb of peerCbs) { try { cb(ch); } catch (e) { console.error(e); } } };
+  const fire = (c) => { for (const cb of peerCbs) { try { cb(c); } catch (e) { console.error(e); } } };
+  // rules published before the walk-replay fields existed refuse them: then fall back to sending plain positions
+  const denied = (e) => /permission/i.test(String((e && (e.code || e.message)) || ''));
+  const hasNew = (o) => NEW_FIELDS.some((k) => k in o);
+  const strip = (o) => { if (legacy) for (const k of NEW_FIELDS) delete o[k]; return o; };
+  const goLegacy = () => { if (!legacy) { legacy = true; console.warn('forest: database rules are older than this page, so plain positions are sent'); } };
   function fullWrite() {
-    if (!conn || writing || mine.n == null) return;
+    if (!conn || writing || picking || mine.n == null || !meRef) return;
     writing = true; ready = false;
-    const data = {}; for (const k in mine) if (k !== 'msgs' && mine[k] != null) data[k] = mine[k];
-    data.ts = D.serverTimestamp();
+    const target = meRef, data = {};
+    for (const k in mine) if (k !== 'msgs' && mine[k] != null) data[k] = mine[k];
+    strip(data); data.ts = D.serverTimestamp();
     const keep = pending.msgs; pending = keep ? { msgs: keep } : {};   // old lines are never re-sent, only unsent ones
-    D.onDisconnect(meRef).remove()
-      .then(() => D.set(meRef, data))
-      .then(() => { ready = true; lastWrite = Date.now(); })
-      .catch((e) => console.warn('forest: could not join the room', e))
-      .finally(() => { writing = false; schedule(); });
+    let retry = false; writes++;
+    D.onDisconnect(target).remove()
+      .then(() => { if (target === meRef) return D.set(target, data); })   // moved to another forest meanwhile: don't recreate the old spot
+      .then(() => { if (target === meRef) { ready = true; lastWrite = Date.now(); } })
+      .catch((e) => { if (!legacy && denied(e) && hasNew(data)) { goLegacy(); retry = true; } else console.warn('forest: could not join the room', e); })
+      .finally(() => { writing = false; if (retry || (target !== meRef && conn)) fullWrite(); else schedule(); });
   }
   function schedule() {
     if (timer || !ready || !Object.keys(pending).length) return;
@@ -1388,34 +1439,103 @@ async function firebaseRoom(cfg) {
     if (pending.msgs === null) patch.msgs = null;   // clearing my lines needs no pacing
     else if (pending.msgs) { if (now - lastMsgs >= MSG_GAP) { patch.msgs = pending.msgs; patch.mt = D.serverTimestamp(); lastMsgs = now; } else held = pending.msgs; }
     pending = held ? { msgs: held } : {};
-    if (Object.keys(patch).length) { patch.ts = D.serverTimestamp(); lastWrite = now; D.update(meRef, patch).catch((e) => console.warn('forest: update refused', e)); }
+    strip(patch);
+    if (Object.keys(patch).length) {
+      patch.ts = D.serverTimestamp(); lastWrite = now; writes++;
+      const sent = patch;
+      D.update(meRef, sent).catch((e) => {
+        if (!denied(e)) { console.warn('forest: update refused', e); return; }
+        // refused: my spot may be gone (a dropped connection clears it) or the rules may predate the walk fields.
+        // Write the whole spot again; if that is refused too, fullWrite drops the walk fields for good.
+        if (sent.msgs && !('msgs' in pending)) { pending.msgs = sent.msgs; lastMsgs = 0; }
+        if (conn && meRef) { ready = false; fullWrite(); }
+      });
+    }
     schedule();
   }
+  async function count(n) { try { let c = 0; (await D.get(chRef(n))).forEach((x) => { if (x.key !== pid) c++; }); return c; } catch (e) { return null; } }
+  async function pick() {
+    let best = 1, bestC = Infinity;
+    for (let n = 1; n <= MAXCH; n++) { const c = await count(n); if (c == null) continue; if (c < CAP) return n; if (c < bestC) { best = n; bestC = c; } }
+    return best;
+  }
+  // first connection: pick a forest. If this person is already in (they entered before the line came up), that pick is final.
+  async function firstJoin() {
+    if (picking || ch) return;
+    picking = true; let n = 1;
+    try { n = await withTimeout(pick(), 8000); } catch (e) { n = 1; }
+    picking = false;
+    const entering = mine.n != null; if (entering) entryPicked = true;
+    fireCh(n, entering, true); join(n);
+  }
+  // the forest was picked when the page opened; pick again on entering, since a crowd may have come in while this person dressed up
+  async function repick() {
+    if (!conn) { fireCh(ch, true, false); return; }
+    picking = true; let n = ch;
+    try { n = await withTimeout(pick(), 5000); } catch (e) { n = ch; }
+    picking = false;
+    if (n !== ch) { fireCh(n, true, true); join(n); } else { fireCh(ch, true, false); fullWrite(); }
+  }
+  function join(n) {
+    for (const off of offs) { try { off(); } catch (e) {} }
+    offs = [];
+    if (known.size) { const gone = [...known].map((k) => ({ peer: k })); known.clear(); fire({ joined: [], updated: [], left: gone }); }
+    ch = n; listRef = chRef(n); meRef = D.child(listRef, pid); ready = false;
+    offs.push(D.onChildAdded(listRef, (s) => { if (s.key !== pid) known.add(s.key); fire({ joined: [toPeer(s)], updated: [], left: [] }); }));
+    offs.push(D.onChildChanged(listRef, (s) => fire({ joined: [], updated: [toPeer(s)], left: [] })));
+    offs.push(D.onChildRemoved(listRef, (s) => { known.delete(s.key); fire({ joined: [], updated: [], left: [toPeer(s)] }); }));
+    if (conn) fullWrite();
+  }
+  async function move(n) {
+    if (!isInt(n, 1, MAXCH) || n === ch || !ch || picking) return ch;
+    const old = meRef; ready = false;
+    if (old) { try { await D.onDisconnect(old).cancel(); await D.remove(old); } catch (e) {} }
+    fireCh(n, false, true); join(n); return ch;
+  }
   D.onValue(D.ref(db, '.info/serverTimeOffset'), (s) => { offset = Number(s.val()) || 0; });
+  // never block on the line: if it doesn't come up (no internet, the free quota spent, the connection limit reached),
+  // the page walks alone and joins by itself whenever it does come up
   D.onValue(D.ref(db, '.info/connected'), (s) => {
     conn = s.val() === true; if (!conn) ready = false;
     for (const cb of connCbs) { try { cb(conn); } catch (e) { console.error(e); } }
-    if (conn) fullWrite();
+    if (conn) { if (!ch) firstJoin(); else fullWrite(); }
   });
-  D.onChildAdded(listRef, (s) => fire({ joined: [toPeer(s)], updated: [], left: [] }));
-  D.onChildChanged(listRef, (s) => fire({ joined: [], updated: [toPeer(s)], left: [] }));
-  D.onChildRemoved(listRef, (s) => fire({ joined: [], updated: [], left: [toPeer(s)] }));
   return {
     onConnection(cb) { connCbs.push(cb); setTimeout(() => cb(conn), 0); return () => {}; },
     onPeers(cb) { peerCbs.push(cb); return () => {}; },
+    onChannel(cb) { chCbs.push(cb); return () => {}; },   // cb(forest, chosen automatically?, switching forests?)
     presence(patch) {
       for (const k in patch) { const v = patch[k]; if (v === null) delete mine[k]; else mine[k] = v; pending[k] = v; }
+      if (!entryPicked && mine.n != null && ch && !picking) { entryPicked = true; repick(); return Promise.resolve(); }
       if (conn && !ready) fullWrite(); else schedule();
       return Promise.resolve();
     },
     serverNow: () => Date.now() + offset,
+    channel: () => ch, cap: CAP, maxChannels: MAXCH, move,
+    channels: async () => { const out = []; for (let n = 1; n <= MAXCH; n++) out.push(n === ch ? known.size + 1 : await count(n)); return out; },
+    get legacy() { return legacy; },
+    writes: () => writes,
   };
 }
+/* can't reach the others: with the internet up, the likely cause is the free quota or the 100-person limit */
+const ALONE_MSG = '접속량이 많아 현재 나홀로 대나무숲으로 실행중이에요! 얼른 서버를 확보해볼게요!';
+const OFFLINE_MSG = '인터넷 연결이 끊겼어요. 다시 연결되면 숲이 이어져요. 그동안은 혼자 걸을 수 있어요.';
+const warnAct = () => { hideToast(); location.reload(); };
 function connWarn() {
-  if (connWarned) return; connWarned = true;
-  const show = () => showToast('다른 사람과 연결되지 않았어요. 접속한 사람이 아주 많거나 인터넷이 불안정할 수 있어요. 그동안은 혼자 걸을 수 있어요.', '다시 연결', () => { hideToast(); location.reload(); });
+  if (connWarned) return; connWarned = true; roomFailed = true; updateCount();
+  const msg = navigator.onLine === false ? OFFLINE_MSG : ALONE_MSG;
+  const show = () => { if (connWarned) showToast(msg, '다시 연결', warnAct); };
   if (entered) show(); else pendingWarn = show;
 }
+// the line came (back) up after the warning: put the warning away and say so
+function connBack() {
+  if (!connWarned) return; connWarned = false; roomFailed = false; pendingWarn = null;
+  if (toastAct === warnAct) hideToast();
+  if (entered) addSys('다시 숲이 이어졌어요.');
+}
+const ro = (n) => (n === 3 || n === 6 ? '으로' : '로');
+const queuedSys = [];
+function sysWhenEntered(text) { if (entered) addSys(text); else queuedSys.push(text); }
 async function connectRoom() {
   let r = null, kind = 'none';
   try { r = window.claude && typeof window.claude.use === 'function' ? await window.claude.use('room') : null; } catch (e) { r = null; }
@@ -1423,12 +1543,21 @@ async function connectRoom() {
   const cfg = window.FOREST_CONFIG;
   if (!r && cfg && cfg.firebase && cfg.firebase.apiKey) {
     try { r = await withTimeout(firebaseRoom(cfg), 15000); kind = 'firebase'; } catch (e) { console.warn('forest: realtime connection failed', e); r = null; connWarn(); }
-    if (r && cfg.debug) window.__forest = { peers: () => [...peers.values()].map((s) => ({ n: s.n, o: s.o, dn: !!s.dn, x: Math.round(s.x), y: Math.round(s.y) })), connected: () => connected, hushed: () => [...hushed], screen: (i) => { const s = [...peers.values()][i]; return s ? { x: (s.x - cam.x) * view.zoom, y: (s.y - cam.y) * view.zoom } : null; } };
+    if (r && r.onChannel) r.onChannel((n, auto, switching) => {
+      if (switching) quietFor(2500);   // the people already there show up all at once: no join/leave lines for that
+      if (auto && n > 1) sysWhenEntered('앞 숲이 꽉 차서 숲 ' + n + ro(n) + ' 안내했어요. 위쪽 숲 번호를 눌러 옮길 수 있어요.');
+      setTimeout(updateCount, 0);
+    });
   }
+  if (cfg && cfg.debug) window.__forest = {   // test hook, only when the config asks for it
+    peers: () => [...peers.values()].map((s) => ({ n: s.n, o: s.o, dn: !!s.dn, x: Math.round(s.x), y: Math.round(s.y) })), connected: () => connected, hushed: () => [...hushed],
+    screen: (i) => { const s = [...peers.values()][i]; return s ? { x: (s.x - cam.x) * view.zoom, y: (s.y - cam.y) * view.zoom } : null; },
+    me: () => ({ x: Math.round(me.x), y: Math.round(me.y) }), channel: () => (r && r.channel ? r.channel() : 0), writes: () => (r && r.writes ? r.writes() : 0), legacy: () => !!(r && r.legacy),
+  };
   if (!r) { roomState = 'alone'; updateCount(); return; }
   room = r; roomKind = kind; roomState = 'live';
   try {
-    room.onConnection((c) => { connected = c; if (!c) discSince = performance.now(); else connWarned = false; updateCount(); }, roomDead);
+    room.onConnection((c) => { connected = c; if (!c) discSince = performance.now(); else connBack(); updateCount(); }, roomDead);
     room.onPeers(handlePeers, roomDead);
   } catch (e) { roomDead(); return; }
   if (!settleTimer) settleTimer = setTimeout(() => { settled = true; }, 2500);
@@ -1442,10 +1571,25 @@ function publishFull() {
   pubKey = ''; lastDtPub = dryMin();
   presence({ v: 1, n: me.n, m: me.m, b: me.b, o: me.o, u: me.u, hr: me.hr, sk: me.sk, x: Math.round(me.x), y: Math.round(me.y), d: me.d, w: me.w ? 1 : 0, dt: Math.min(lastDtPub, 1440), dn: me.dance ? 1 : 0, msgs: me.chat.length ? liveMsgs() : null, e: me.e });
 }
+/* send where I'm going, not every step: a tap sends its target once, held keys send their direction when it changes;
+   everyone replays the walk on their own screen, and a light position check goes out every second or so */
+function intentNow() {
+  if (me.keyDir) return 'k' + me.keyDir.x + ',' + me.keyDir.y;
+  if (me.target) return 't' + Math.round(me.target.x) + ',' + Math.round(me.target.y);
+  return 'i';
+}
 function publishMove(now) {
-  if (!room || !entered || now - lastPub < (roomKind === 'firebase' ? 200 : 90)) return;
-  const key = Math.round(me.x) + ',' + Math.round(me.y) + ',' + me.d + ',' + (me.w ? 1 : 0); if (key === pubKey) return;
-  pubKey = key; lastPub = now; presence({ x: Math.round(me.x), y: Math.round(me.y), d: me.d, w: me.w ? 1 : 0 });
+  if (!room || !entered) return;
+  const it = intentNow(), changed = it !== pubKey, legacy = !!room.legacy;
+  const every = legacy ? 200 : it[0] === 'k' ? 1000 : 1500;
+  if (!changed && !(me.w && now - lastPub >= every)) return;
+  lastPub = now;
+  const base = { x: Math.round(me.x), y: Math.round(me.y), d: me.d };
+  if (!changed) { presence(base); return; }
+  pubKey = it;
+  if (it[0] === 'k') presence(Object.assign(base, { w: 1, kx: me.keyDir.x, ky: me.keyDir.y, tx: null, ty: null }));
+  else if (it[0] === 't') presence(Object.assign(base, { w: 1, tx: Math.round(me.target.x), ty: Math.round(me.target.y), kx: null, ky: null }));
+  else presence(Object.assign(base, { w: 0, tx: null, ty: null, kx: null, ky: null }));
 }
 
 /* ---------------- actions & effects ---------------- */
@@ -1500,13 +1644,16 @@ function myEmote(k) {
 }
 
 /* ---------------- movement ---------------- */
-function tryMove(nx, ny) {
-  if (!blocked(nx, ny)) { me.x = nx; me.y = ny; return true; }
-  if (!blocked(nx, me.y)) { me.x = nx; return true; }
-  if (!blocked(me.x, ny)) { me.y = ny; return true; }
-  return false;
+/* one sliding step against the obstacles everyone shares, so a peer's walk can be replayed on every screen */
+function slide(px, py, nx, ny) {
+  if (!blocked(nx, ny)) return [nx, ny];
+  if (!blocked(nx, py)) return [nx, py];
+  if (!blocked(px, ny)) return [px, ny];
+  return null;
 }
-function face(dx, dy) { if (Math.abs(dx) > Math.abs(dy) * 1.1) me.d = dx < 0 ? 'l' : 'r'; else me.d = dy < 0 ? 'u' : 'f'; }
+function tryMove(nx, ny) { const p = slide(me.x, me.y, nx, ny); if (!p) return false; me.x = p[0]; me.y = p[1]; return true; }
+function faceOf(dx, dy) { return Math.abs(dx) > Math.abs(dy) * 1.1 ? (dx < 0 ? 'l' : 'r') : (dy < 0 ? 'u' : 'f'); }
+function face(dx, dy) { me.d = faceOf(dx, dy); }
 function spawn() {
   for (let i = 0; i < 40; i++) { const x = 1100 + (Math.random() - 0.5) * 120, y = 1500 + (Math.random() - 0.5) * 50; if (!blocked(x, y)) { me.x = x; me.y = y; return; } }
   me.x = 1100; me.y = 1500;
@@ -1520,6 +1667,7 @@ function update(dt, t, now) {
     if (keys.has('ArrowLeft') || keys.has('KeyA')) ix -= 1; if (keys.has('ArrowRight') || keys.has('KeyD')) ix += 1;
     if (keys.has('ArrowUp') || keys.has('KeyW')) iy -= 1; if (keys.has('ArrowDown') || keys.has('KeyS')) iy += 1;
     let moving = false;
+    me.keyDir = ix || iy ? { x: ix, y: iy } : null;
     if (ix || iy) { if (me.dance) setDance(false); me.target = null; const l = Math.hypot(ix, iy); moving = tryMove(me.x + (ix / l) * SPEED * dt, me.y + (iy / l) * SPEED * dt); face(ix, iy); }
     else if (me.target) {
       const dx = me.target.x - me.x, dy = me.target.y - me.y, d = Math.hypot(dx, dy);
@@ -1528,11 +1676,25 @@ function update(dt, t, now) {
     }
     me.w = moving; if (moving) { me.phase += dt * 11; lastActive = now; }
     publishMove(now);
-  } else me.w = false;
+  } else { me.w = false; me.keyDir = null; }
   for (const s of peers.values()) {
-    const dx = s.tx - s.x, dy = s.ty - s.y, d = Math.hypot(dx, dy);
-    if (d > 500) { s.x = s.tx; s.y = s.ty; } else { const k = 1 - Math.exp(-dt * 9); s.x += dx * k; s.y += dy * k; }
-    s.moving = s.w || d > 1.2; if (s.moving) s.phase += dt * 11;
+    // replay their walk here: toward the spot they tapped, or along the keys they hold
+    let mv = false, ux = 0, uy = 0;
+    // held keys report every second; if reports stop coming (a lost connection), stop the replay instead of walking on
+    if ((s.kx || s.ky) && now - (s.rt || 0) > 1800) s.kx = s.ky = 0;
+    if (s.kx || s.ky) { const l = Math.hypot(s.kx, s.ky); ux = s.kx / l; uy = s.ky / l; const p = slide(s.sx, s.sy, s.sx + ux * SPEED * dt, s.sy + uy * SPEED * dt); if (p) { s.sx = p[0]; s.sy = p[1]; mv = true; } }
+    else if (s.gx != null) {
+      const gx = s.gx - s.sx, gy = s.gy - s.sy, gd = Math.hypot(gx, gy);
+      if (gd < 4) s.gx = s.gy = null;
+      else {
+        ux = gx / gd; uy = gy / gd; const st = Math.min(gd, SPEED * dt); const p = slide(s.sx, s.sy, s.sx + ux * st, s.sy + uy * st);
+        if (p) { s.sx = p[0]; s.sy = p[1]; mv = true; s.stuck = 0; } else if ((s.stuck = (s.stuck || 0) + dt) > 0.35) s.gx = s.gy = null;
+      }
+    }
+    if (mv) s.d = faceOf(ux, uy);
+    const dx = s.sx - s.x, dy = s.sy - s.y, d = Math.hypot(dx, dy);
+    if (d > 500) { s.x = s.sx; s.y = s.sy; } else { const k = 1 - Math.exp(-dt * 12); s.x += dx * k; s.y += dy * k; }
+    s.moving = mv || d > 1.5; if (s.moving) s.phase += dt * 11;
     if (s.bubble && (now - s.bubble.at) / 1000 > s.bubble.life) s.bubble = null;
     if (s.emote && now - s.emote.at > 1800) s.emote = null;
   }
@@ -1830,12 +1992,47 @@ function addSys(text, at) {
 function updateCount() {
   let text, live = false;
   if (roomState === 'pending') text = '연결 중…';
+  else if (roomFailed && !connected) text = '나홀로 대나무숲';
   else if (roomState !== 'live' || !room) text = '혼자 걷는 중';
+  else if (room.channel && !room.channel()) text = '연결 중…';   // signed in, but no forest yet (the line isn't up)
   else if (!connected && performance.now() - discSince > 2000) text = '다시 연결 중…';
-  else { const n = peers.size + (entered ? 1 : 0); text = '숲에 ' + n + '명'; live = true; }
+  else { const n = peers.size + (entered ? 1 : 0); text = (room.channel ? '숲 ' + room.channel() + ' · ' : '숲에 ') + n + '명'; live = true; }
   countText.textContent = text; countEl.classList.toggle('live', live);
+  const can = !!(live && room && room.move); countEl.classList.toggle('can', can);
+  if (!can && !chPop.hidden) closeChannels();
   const ll = $('#liveLine'); const others = peers.size;
-  if (!entered && live && others > 0) { ll.textContent = '지금 ' + others + '명이 숲을 걷고 있어요.'; ll.hidden = false; } else ll.hidden = true;
+  if (!entered && roomFailed && !connected) { ll.textContent = '지금은 접속량이 많아 나홀로 대나무숲으로 열려요.'; ll.hidden = false; }
+  else if (!entered && live && others > 0) { ll.textContent = '지금 ' + others + '명이 숲을 걷고 있어요.'; ll.hidden = false; } else ll.hidden = true;
+}
+/* the forest number: tap to see each forest's headcount and move to a friend's */
+const chPop = $('#chPop'), chList = $('#chList');
+async function openChannels() {
+  if (!room || !room.channels) return;
+  chPop.hidden = false; countEl.setAttribute('aria-expanded', 'true'); $('#chCap').textContent = room.cap;
+  chList.textContent = ''; const wait = document.createElement('li'); wait.className = 'log-sys'; wait.textContent = '숲을 둘러보는 중…'; chList.append(wait);
+  let counts = [];
+  try { counts = await room.channels(); } catch (e) { counts = []; }
+  if (chPop.hidden) return;
+  const cur = room.channel(); let last = cur;
+  counts.forEach((c, i) => { if (c > 0) last = Math.max(last, i + 1); });
+  const show = Math.min(room.maxChannels, Math.max(2, last + 1));
+  chList.textContent = '';
+  for (let n = 1; n <= show; n++) {
+    const c = counts[n - 1] || 0, here = n === cur, full = !here && c >= room.cap;
+    const li = document.createElement('li'), b = document.createElement('button');
+    b.type = 'button'; b.className = 'ch-item'; b.disabled = here || full; if (here) b.setAttribute('aria-current', 'true');
+    const name = document.createElement('span'); name.textContent = '숲 ' + n;
+    const info = document.createElement('small'); info.textContent = here ? '지금 여기 · ' + c + '명' : full ? '꽉 찼어요' : c + '명';
+    b.append(name, info); b.addEventListener('click', () => moveTo(n)); li.append(b); chList.append(li);
+  }
+}
+function closeChannels() { chPop.hidden = true; countEl.setAttribute('aria-expanded', 'false'); }
+function quietFor(ms) { settled = false; clearTimeout(settleTimer); settleTimer = setTimeout(() => { settled = true; }, ms); }
+async function moveTo(n) {
+  closeChannels(); if (!room || !room.move) return;
+  quietFor(2500); closePeerMenu();
+  if ((await room.move(n)) !== n) { updateCount(); return; }
+  pubKey = ''; addSys('숲 ' + n + ro(n) + ' 옮겼어요.'); leafBurst(me.x, me.y, 10); updateCount();
 }
 function tickTimer() {
   updateCount(); measureHud();
@@ -1916,7 +2113,10 @@ function enterForest(fromHot) {
   savePrefs(); publishFull();
   if (!fromHot) {
     if (!mutedPref) Sound.start();
-    if (first) { addSys('숲에 들어왔어요. 여기서 한 말은 남지 않아요.'); showHint(); if (pendingWarn) { const f = pendingWarn; pendingWarn = null; setTimeout(f, 1500); } }
+    if (first) {
+      addSys('숲에 들어왔어요. 여기서 한 말은 남지 않아요.'); for (const s of queuedSys.splice(0)) addSys(s); showHint();
+      if (pendingWarn) { const f = pendingWarn; pendingWarn = null; setTimeout(f, 1500); }
+    }
     else if (maskChanged || looksChanged) { puffAt(me.x, me.y); Sound.play(maskChanged ? 'peel' : 'change'); }
   }
   syncSoundBtn(); tickTimer(); measureHud();
@@ -1957,7 +2157,11 @@ function wireUI() {
   $('#soundBtn').addEventListener('click', () => { if (Sound.on()) { Sound.mute(true); mutedPref = true; } else { mutedPref = false; if (!Sound.start()) mutedPref = true; } syncSoundBtn(); savePrefs(); });
   const mix = $('#mix'), mixBtn = $('#mixBtn');
   mixBtn.addEventListener('click', () => { mix.hidden = !mix.hidden; mixBtn.setAttribute('aria-expanded', mix.hidden ? 'false' : 'true'); });
-  document.addEventListener('pointerdown', (e) => { if (!mix.hidden && !mix.contains(e.target) && !mixBtn.contains(e.target)) { mix.hidden = true; mixBtn.setAttribute('aria-expanded', 'false'); } });
+  document.addEventListener('pointerdown', (e) => {
+    if (!mix.hidden && !mix.contains(e.target) && !mixBtn.contains(e.target)) { mix.hidden = true; mixBtn.setAttribute('aria-expanded', 'false'); }
+    if (!chPop.hidden && !chPop.contains(e.target) && !countEl.contains(e.target)) closeChannels();
+  });
+  countEl.addEventListener('click', () => { if (!countEl.classList.contains('can')) return; if (chPop.hidden) openChannels(); else closeChannels(); });
   const bgVol = $('#bgVol'), fxVol = $('#fxVol');
   bgVol.value = Math.round(vol.bg * 100); fxVol.value = Math.round(vol.fx * 100); $('#bgVal').textContent = bgVol.value; $('#fxVal').textContent = fxVol.value;
   bgVol.addEventListener('input', () => { vol.bg = bgVol.value / 100; $('#bgVal').textContent = bgVol.value; Sound.setBg(vol.bg); savePrefs(); });
@@ -1967,6 +2171,7 @@ function wireUI() {
   const MOVE = { ArrowLeft: 1, ArrowRight: 1, ArrowUp: 1, ArrowDown: 1, KeyA: 1, KeyD: 1, KeyW: 1, KeyS: 1 };
   window.addEventListener('keydown', (e) => {
     if (!peerPop.hidden && e.key === 'Escape') { closePeerMenu(); return; }
+    if (!chPop.hidden && e.key === 'Escape') { closeChannels(); return; }
     if (!gateEl.hidden) { if (e.key === 'Escape' && entered) closeGate(); return; }
     if (!entered) return;
     if (isTyping(e.target)) { if (e.key === 'Escape') e.target.blur(); return; }
@@ -1988,7 +2193,12 @@ function wireUI() {
     me.target = { x: clamp(wx, 30, W - 30), y: clamp(wy, 80, H - 24) }; marker = { x: me.target.x, y: me.target.y, t: performance.now() / 1000 };
     if (document.activeElement === sayInput) sayInput.blur(); markActive();
   });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) { Sound.pause(); keys.clear(); } else Sound.wake(); });
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) { Sound.wake(); return; }
+    Sound.pause(); keys.clear();
+    // a hidden tab stops drawing frames, so tell the others the held-key walk ended rather than let them replay it on
+    if (me.keyDir) { me.keyDir = null; me.w = false; publishMove(performance.now()); }
+  });
   window.addEventListener('resize', resize);
   try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', themeChanged); } catch (e) {}
   try { new MutationObserver(themeChanged).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] }); } catch (e) {}
