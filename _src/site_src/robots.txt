@@ -1,0 +1,7 @@
+# 피부관리사 대나무숲: 검색엔진과 AI 검색 모두에게 열어 둬요.
+# robots.txt는 도메인 맨 앞(루트)에 있을 때만 읽혀요.
+# 지금 주소(…github.io/bamboo-forest/)에서는 효과가 없고, 내 도메인이나 조직 주소로 옮기면 그때부터 적용돼요.
+User-agent: *
+Allow: /
+
+Sitemap: {{SITE}}sitemap.xml

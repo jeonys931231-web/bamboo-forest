@@ -1,0 +1,5 @@
+# GitHub Pages 설정: 아래 파일은 저장소에는 있지만 사이트 주소로는 공개되지 않아요.
+# (밑줄로 시작하는 _src 폴더는 원래 공개되지 않아요.)
+exclude:
+  - README.md
+  - database.rules.json

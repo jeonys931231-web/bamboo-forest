@@ -3,12 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="description" content="마스크팩 하나 붙이고, 오늘 있었던 일을 바람에 털어놓고 가는 피부관리사들의 숲.">
+<meta name="description" content="피부관리사들이 마스크팩을 붙인 캐릭터로 대나무숲을 함께 걸으며 오늘 있었던 일을 익명으로 털어놓는 무료 메타버스. 회원가입 없이 폰과 PC에서 바로 들어와요.">
+<link rel="canonical" href="https://jeonys931231-web.github.io/bamboo-forest/">
 <meta name="theme-color" content="#2E6C4B">
 <meta property="og:type" content="website">
+<meta property="og:locale" content="ko_KR">
 <meta property="og:site_name" content="피부관리사 대나무숲">
 <meta property="og:title" content="피부관리사 대나무숲">
-<meta property="og:description" content="마스크팩 하나 붙이고, 오늘 있었던 일을 바람에 털어놓고 가는 피부관리사들의 숲.">
+<meta property="og:description" content="피부관리사들이 마스크팩을 붙인 캐릭터로 대나무숲을 함께 걸으며 오늘 있었던 일을 익명으로 털어놓는 무료 메타버스. 회원가입 없이 폰과 PC에서 바로 들어와요.">
 <meta property="og:url" content="https://jeonys931231-web.github.io/bamboo-forest/">
 <meta property="og:image" content="https://jeonys931231-web.github.io/bamboo-forest/og.jpg">
 <meta property="og:image:width" content="1200">
@@ -16,9 +18,52 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%232E6C4B'/%3E%3Cellipse cx='32' cy='35' rx='19' ry='21' fill='%23D4EBD9'/%3E%3Cellipse cx='24.5' cy='31' rx='4.4' ry='2.8' fill='%232E6C4B'/%3E%3Cellipse cx='39.5' cy='31' rx='4.4' ry='2.8' fill='%232E6C4B'/%3E%3Cellipse cx='32' cy='44' rx='4.2' ry='2.1' fill='%232E6C4B'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="icon.png">
+<script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@graph": [
+  {
+   "@type": "WebSite",
+   "@id": "https://jeonys931231-web.github.io/bamboo-forest/#website",
+   "name": "피부관리사 대나무숲",
+   "alternateName": [
+    "피부관리사 메타버스",
+    "관리사 대나무숲"
+   ],
+   "url": "https://jeonys931231-web.github.io/bamboo-forest/",
+   "inLanguage": "ko-KR"
+  },
+  {
+   "@type": "WebApplication",
+   "@id": "https://jeonys931231-web.github.io/bamboo-forest/#app",
+   "name": "피부관리사 대나무숲",
+   "alternateName": [
+    "피부관리사 메타버스",
+    "관리사 대나무숲"
+   ],
+   "url": "https://jeonys931231-web.github.io/bamboo-forest/",
+   "description": "피부관리사들이 마스크팩을 붙인 캐릭터로 대나무숲을 함께 걸으며 실시간으로 익명 대화를 나누는 무료 웹 메타버스. 한 말은 10초 뒤 서버에서 지워진다.",
+   "applicationCategory": "SocialNetworkingApplication",
+   "operatingSystem": "웹 브라우저(PC·모바일)",
+   "isAccessibleForFree": true,
+   "inLanguage": "ko-KR",
+   "image": "https://jeonys931231-web.github.io/bamboo-forest/og.jpg",
+   "audience": {
+    "@type": "Audience",
+    "audienceType": "피부관리사"
+   },
+   "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "KRW"
+   }
+  }
+ ]
+}
+</script>
 <style>body{margin:0}img{max-width:100%}</style>
 <script src="config.js"></script>
-<title>피부관리사 대나무숲</title>
+<title>피부관리사 대나무숲 | 피부관리사 익명 메타버스</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Song+Myung&display=swap">
@@ -206,6 +251,15 @@ input[type=range]{width:100%;margin:0;accent-color:var(--bamboo)}
 .board h1{margin:0;font-family:var(--font-display);font-weight:400;font-size:clamp(22px,6.4vw,28px);letter-spacing:.08em;line-height:1.25;text-wrap:balance}
 .lead{margin:0;font-size:15px;line-height:1.65;text-wrap:pretty}
 .live-line{margin:-6px 0 0;font-size:12.5px;color:var(--bamboo)}
+.about{margin-top:-6px;padding:8px 0;border-top:1px solid var(--panel-line);border-bottom:1px solid var(--panel-line)}
+.about summary{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13.5px;color:var(--bamboo);list-style:none}
+.about summary::-webkit-details-marker{display:none}
+.about summary::before{content:"";width:6px;height:6px;border-right:1.6px solid currentColor;border-bottom:1.6px solid currentColor;transform:rotate(-45deg);transition:transform .2s ease}
+.about[open] summary::before{transform:rotate(45deg)}
+.about-body{display:grid;gap:8px;padding-top:10px;font-size:13.5px;line-height:1.65}
+.about-body p{margin:0}
+.about-body ul{margin:0;padding-left:18px;display:grid;gap:3px}
+.about-link{justify-self:start;color:var(--bamboo);font-size:13px}
 .pick{display:grid;grid-template-columns:112px minmax(0,1fr);gap:14px;align-items:start}
 .preview{width:112px;height:168px;border-radius:14px;background:var(--chip);display:block}
 .fields{display:grid;gap:12px;min-width:0;align-content:start}
@@ -322,7 +376,19 @@ input[type=range]{width:100%;margin:0;accent-color:var(--bamboo)}
 <div class="gate" id="gate">
   <div class="gate-card" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
     <div class="board"><h1 id="gateTitle">피부관리사 대나무숲</h1></div>
-    <p class="lead" id="lead">마스크팩 하나 붙이고, 오늘 있었던 일을 바람에 털어놓고 가는 숲이에요.</p>
+    <p class="lead" id="lead">피부관리사들이 마스크팩 하나 붙이고, 오늘 있었던 일을 바람에 털어놓고 가는 숲이에요.</p>
+    <details class="about">
+      <summary>대나무숲이 뭐예요?</summary>
+      <div class="about-body">
+        <p>피부관리사 대나무숲은 피부관리사들이 함께 쓰는 작은 메타버스예요. 마스크팩을 붙인 캐릭터로 숲을 걸으면서, 지금 접속한 관리사들과 익명으로 이야기를 나눠요.</p>
+        <ul>
+          <li>회원가입이나 앱 설치 없이 무료로 들어와요.</li>
+          <li>한 말은 10초 뒤 서버에서 지워지고, 나중에 온 사람에게는 보이지 않아요.</li>
+          <li>폰과 PC 브라우저 모두에서 돼요.</li>
+        </ul>
+        <a class="about-link" href="about.html" data-site-only>소개와 자주 묻는 질문 보기</a>
+      </div>
+    </details>
     <p class="live-line" id="liveLine" hidden></p>
     <div class="pick">
       <canvas class="preview" id="preview" aria-hidden="true"></canvas>
@@ -1951,6 +2017,7 @@ function boot(data) {
   nameEdited = !!pref.edited; me.n = clean(pref.n, 14) || genName(me.m);
   if (fin(pref.bg)) vol.bg = clamp(pref.bg, 0, 1); if (fin(pref.fx)) vol.fx = clamp(pref.fx, 0, 1); mutedPref = !!pref.muted;
   for (const k of loadHushed()) hushed.add(k);
+  if (!window.FOREST_CONFIG) for (const el of document.querySelectorAll('[data-site-only]')) el.hidden = true;   // links to the site's own pages
   const hm = data && data.me;
   if (hm && typeof hm === 'object') {
     for (const [k, n] of LOOK) if (isInt(hm[k], 0, n - 1)) me[k] = hm[k];
