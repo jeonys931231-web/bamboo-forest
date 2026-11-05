@@ -285,7 +285,7 @@ input[type=range]{width:100%;margin:0;accent-color:var(--bamboo)}
         <button class="btn btn-ghost" id="logToggle" type="button">접기</button>
       </div>
       <ol class="log-list" id="logList" aria-live="polite"><li class="log-sys" id="logEmpty">아직 조용해요. 아래 입력창에 첫마디를 남겨보세요.</li></ol>
-      <p class="log-note">대화는 남지 않아요. 지금 숲에 있는 사람에게만 들려요. 불편한 말은 그 사람을 눌러서 숨길 수 있어요.</p>
+      <p class="log-note">대화는 남지 않아요. 한 말은 10초 뒤 서버에서도 지워지고, 지금 숲에 있는 사람에게만 들려요. 불편한 말은 그 사람을 눌러서 숨길 수 있어요.</p>
     </aside>
     <div class="toast panel" id="toast" role="status" hidden>
       <p id="toastText"></p>
@@ -369,7 +369,7 @@ input[type=range]{width:100%;margin:0;accent-color:var(--bamboo)}
     <div class="gate-actions">
       <button class="btn btn-primary enter" id="enterBtn" type="button">숲에 들어가기</button>
       <button class="btn btn-ghost" id="gateClose" type="button" hidden>그냥 닫기</button>
-      <p class="fine">잔잔한 소리가 나와요. 오른쪽 위에서 줄이거나 끌 수 있어요.<br>대화는 남지 않아요. 숲을 나가면 내 말도 함께 사라져요.</p>
+      <p class="fine">잔잔한 소리가 나와요. 오른쪽 위에서 줄이거나 끌 수 있어요.<br>대화는 남지 않아요. 내가 한 말은 10초 뒤 서버에서도 사라져요.</p>
     </div>
   </div>
 </div>
@@ -1033,7 +1033,7 @@ function drawRoof(c, t) {
 }
 
 /* ---------------- state ---------------- */
-const me = { n: '', m: 0, b: 0, o: 0, u: 0, hr: 0, sk: 0, x: 1100, y: 1500, d: 'f', w: false, phase: 0, target: null, stuck: 0, msgs: [], msgSeq: 0, e: null, eSeq: 0, maskStart: Date.now(), bubble: null, talkUntil: 0, emote: null, dance: false, seed: Math.random() * 10 };
+const me = { n: '', m: 0, b: 0, o: 0, u: 0, hr: 0, sk: 0, x: 1100, y: 1500, d: 'f', w: false, phase: 0, target: null, stuck: 0, chat: [], msgSeq: 0, e: null, eSeq: 0, maskStart: Date.now(), bubble: null, talkUntil: 0, emote: null, dance: false, seed: Math.random() * 10 };
 const peers = new Map();
 const P = []; const RIPPLES = []; const visStalks = [];
 let entered = false, nameEdited = false, draft = { m: 0, b: 0, o: 0, u: 0, hr: 0 }, previewT0 = 0;
@@ -1041,6 +1041,8 @@ let lastActive = performance.now(), marker = null, kicking = false, leafAcc = 0,
 let room = null, roomState = 'pending', connected = false, discSince = 0, settled = false, settleTimer = null;
 let roomKind = 'none', connWarned = false, pendingWarn = null, menuPeer = null;
 const hushed = new Set();
+const CHAT_TTL = 10000;   // what I say leaves the server this long after I say it
+const liveMsgs = () => me.chat.map((x) => (x.s ? { id: x.id, t: x.t, s: 1 } : { id: x.id, t: x.t }));
 let lastPub = 0, pubKey = '', lastDtPub = -1, lastSend = 0, lastEmote = 0, toastFor = null, unread = 0;
 const keys = new Set();
 const vol = { bg: 0.7, fx: 0.7 }; let mutedPref = false;
@@ -1317,7 +1319,8 @@ async function firebaseRoom(cfg) {
     if (!conn || !ready || !Object.keys(pending).length) return;
     const now = Date.now(), patch = {}; let held = null;
     for (const k in pending) if (k !== 'msgs') patch[k] = pending[k];
-    if (pending.msgs) { if (now - lastMsgs >= MSG_GAP) { patch.msgs = pending.msgs; patch.mt = D.serverTimestamp(); lastMsgs = now; } else held = pending.msgs; }
+    if (pending.msgs === null) patch.msgs = null;   // clearing my lines needs no pacing
+    else if (pending.msgs) { if (now - lastMsgs >= MSG_GAP) { patch.msgs = pending.msgs; patch.mt = D.serverTimestamp(); lastMsgs = now; } else held = pending.msgs; }
     pending = held ? { msgs: held } : {};
     if (Object.keys(patch).length) { patch.ts = D.serverTimestamp(); lastWrite = now; D.update(meRef, patch).catch((e) => console.warn('forest: update refused', e)); }
     schedule();
@@ -1371,7 +1374,7 @@ const dryMin = () => Math.floor((Date.now() - me.maskStart) / 60000);
 function publishFull() {
   if (!room || !entered) return;
   pubKey = ''; lastDtPub = dryMin();
-  presence({ v: 1, n: me.n, m: me.m, b: me.b, o: me.o, u: me.u, hr: me.hr, sk: me.sk, x: Math.round(me.x), y: Math.round(me.y), d: me.d, w: me.w ? 1 : 0, dt: Math.min(lastDtPub, 1440), dn: me.dance ? 1 : 0, msgs: me.msgs, e: me.e });
+  presence({ v: 1, n: me.n, m: me.m, b: me.b, o: me.o, u: me.u, hr: me.hr, sk: me.sk, x: Math.round(me.x), y: Math.round(me.y), d: me.d, w: me.w ? 1 : 0, dt: Math.min(lastDtPub, 1440), dn: me.dance ? 1 : 0, msgs: me.chat.length ? liveMsgs() : null, e: me.e });
 }
 function publishMove(now) {
   if (!room || !entered || now - lastPub < (roomKind === 'firebase' ? 200 : 90)) return;
@@ -1410,9 +1413,10 @@ function sendChat() {
   const text = soften(clean(sayInput.value, 80)); if (!text || !entered) return;
   const now = performance.now(); if (now - lastSend < 450) return; lastSend = now;
   const shout = shoutEl.checked; me.msgSeq++; const m = { id: me.msgSeq, t: text }; if (shout) m.s = 1;
-  me.msgs = me.msgs.concat([m]).slice(-3); me.bubble = makeBubble(text, shout, now); me.talkUntil = now + Math.min(2600, 140 * Array.from(text).length);
+  m.at = Date.now(); me.chat = me.chat.filter((x) => m.at - x.at < CHAT_TTL).concat([m]).slice(-3);
+  me.bubble = makeBubble(text, shout, now); me.talkUntil = now + Math.min(2600, 140 * Array.from(text).length);
   addChat(me.n, text, me.m, shout, true); sayEffects(me, shout); Sound.play(shout ? 'shout' : 'mine', { pan: 0, near: 1 });
-  presence({ msgs: me.msgs });
+  presence({ msgs: liveMsgs() });
   sayInput.value = ''; if (shout) { shoutEl.checked = false; syncPlaceholder(); }
   markActive();
 }
@@ -1774,6 +1778,7 @@ function tickTimer() {
     if (room && room.serverNow) { const sn = room.serverNow(); for (const s of [...peers.values()]) if (s.ts && sn - s.ts > 180000) removePeer({ peer: s.peer }); }
   }
   if (!entered) return;
+  if (me.chat.length && Date.now() - me.chat[0].at >= CHAT_TTL) { me.chat = me.chat.filter((x) => Date.now() - x.at < CHAT_TTL); presence({ msgs: me.chat.length ? liveMsgs() : null }); }
   const m = dryMin(); if (m !== lastDtPub) { lastDtPub = m; presence({ dt: Math.min(m, 1440) }); }
   const n = NARROW();
   timerEl.textContent = m >= 15 ? (n ? '팩 ' + m + '분 · 뗄 시간' : '팩 붙인 지 ' + m + '분 · 이제 떼도 돼요') : (n ? '팩 ' + m + '분' : '팩 붙인 지 ' + m + '분');
